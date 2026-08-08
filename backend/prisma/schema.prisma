@@ -1,0 +1,161 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  Admin
+  Sales
+  Warehouse
+  Accounts
+}
+
+enum CustomerType {
+  Retail
+  Wholesale
+  Distributor
+}
+
+enum CustomerStatus {
+  Lead
+  Active
+  Inactive
+}
+
+enum MovementType {
+  IN
+  OUT
+}
+
+enum ChallanStatus {
+  Draft
+  Confirmed
+  Cancelled
+}
+
+model User {
+  id           String             @id @default(uuid())
+  name         String
+  email        String             @unique
+  passwordHash String
+  role         Role
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  followUps    CustomerFollowUp[]
+  movements    StockMovement[]
+  challans     SalesChallan[]
+
+  @@index([email])
+}
+
+model Customer {
+  id           String             @id @default(uuid())
+  customerName String
+  mobileNumber String
+  email        String
+  businessName String
+  gstNumber    String?
+  customerType CustomerType
+  address      String             @db.Text
+  status       CustomerStatus     @default(Lead)
+  followUpDate DateTime?
+  notes        String             @db.Text
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  followUps    CustomerFollowUp[]
+  challans     SalesChallan[]
+
+  @@index([customerName])
+  @@index([mobileNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CustomerFollowUp {
+  id           String   @id @default(uuid())
+  customerId   String
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  note         String   @db.Text
+  followUpDate DateTime
+  createdBy    String
+  user         User     @relation(fields: [createdBy], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@index([customerId])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model Product {
+  id                        String             @id @default(uuid())
+  productName               String
+  sku                       String             @unique
+  category                  String
+  unitPrice                 Decimal            @db.Decimal(10, 2)
+  currentStock              Int                @default(0)
+  minimumStockAlertQuantity Int                @default(0)
+  warehouseLocation         String
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  stockMovements            StockMovement[]
+  challanItems              SalesChallanItem[]
+
+  @@index([sku])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model StockMovement {
+  id              String       @id @default(uuid())
+  productId       String
+  product         Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantityChanged Int
+  movementType    MovementType
+  reason          String
+  createdBy       String
+  user            User         @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime     @default(now())
+
+  @@index([productId])
+  @@index([createdBy])
+  @@index([createdAt])
+}
+
+model SalesChallan {
+  id            String             @id @default(uuid())
+  challanNumber String             @unique
+  customerId    String
+  customer      Customer           @relation(fields: [customerId], references: [id])
+  totalQuantity Int                @default(0)
+  totalAmount   Decimal            @db.Decimal(10, 2) @default(0.00)
+  status        ChallanStatus      @default(Draft)
+  createdBy     String
+  user          User               @relation(fields: [createdBy], references: [id])
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  items         SalesChallanItem[]
+
+  @@index([challanNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SalesChallanItem {
+  id                  String       @id @default(uuid())
+  challanId           String
+  challan             SalesChallan @relation(fields: [challanId], references: [id], onDelete: Cascade)
+  productId           String
+  product             Product      @relation(fields: [productId], references: [id])
+  productNameSnapshot String
+  skuSnapshot         String
+  unitPriceSnapshot   Decimal      @db.Decimal(10, 2)
+  quantity            Int
+  subtotal            Decimal      @db.Decimal(10, 2)
+
+  @@index([challanId])
+  @@index([productId])
+}
