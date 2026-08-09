@@ -49,6 +49,20 @@ export default function Challans() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editChallanId, setEditChallanId] = useState(null); // holds id if editing draft
 
+  const [actionSuccess, setActionSuccess] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [isConfirmingAction, setIsConfirmingAction] = useState(false);
+  const [isCancellingAction, setIsCancellingAction] = useState(false);
+  const [actionRunning, setActionRunning] = useState(false);
+
+  useEffect(() => {
+    setActionSuccess('');
+    setActionError('');
+    setIsConfirmingAction(false);
+    setIsCancellingAction(false);
+    setActionRunning(false);
+  }, [selectedChallan]);
+
   // Form states - Create or Edit Challan
   const [challanForm, setChallanForm] = useState({
     customerId: '',
@@ -128,11 +142,14 @@ export default function Challans() {
   };
 
   // Perform confirm challan operation (atomic inventory check & update)
-  const handleConfirmChallan = async (id) => {
-    if (!window.confirm('Confirming dispatch will atomically deduct item stocks. Proceed?')) return;
+  const executeConfirmChallan = async (id) => {
+    setActionRunning(true);
+    setActionError('');
+    setActionSuccess('');
     try {
       const res = await challanAPI.confirmChallan(id);
-      alert(res.message);
+      setActionSuccess(res.message);
+      setIsConfirmingAction(false);
       // Refresh current scopes
       if (selectedChallan && selectedChallan.id === id) {
         await loadSingleChallan(id);
@@ -140,23 +157,30 @@ export default function Challans() {
       fetchChallans();
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Confirmation operation failed');
+      setActionError(err.message || 'Confirmation operation failed');
+    } finally {
+      setActionRunning(false);
     }
   };
 
   // Perform cancel challan operation (with inventory restoration if confirmed)
-  const handleCancelChallan = async (id) => {
-    if (!window.confirm('Cancelling challan is permanent. If confirmed, inventory stocks will revert. Proceed?')) return;
+  const executeCancelChallan = async (id) => {
+    setActionRunning(true);
+    setActionError('');
+    setActionSuccess('');
     try {
       const res = await challanAPI.cancelChallan(id);
-      alert(res.message);
+      setActionSuccess(res.message);
+      setIsCancellingAction(false);
       if (selectedChallan && selectedChallan.id === id) {
         await loadSingleChallan(id);
       }
       fetchChallans();
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Cancellation failed');
+      setActionError(err.message || 'Cancellation failed');
+    } finally {
+      setActionRunning(false);
     }
   };
 
@@ -440,6 +464,16 @@ export default function Challans() {
             </div>
 
             <div className="modal-body">
+              {actionSuccess && (
+                <div className="alert-box alert-success" style={{ padding: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                  {actionSuccess}
+                </div>
+              )}
+              {actionError && (
+                <div className="alert-box alert-danger" style={{ padding: '0.75rem', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                  {actionError}
+                </div>
+              )}
               {selectedChallanLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                   <RefreshCw size={24} style={{ animation: 'spin 1.5s linear infinite' }} />
@@ -504,62 +538,94 @@ export default function Challans() {
                   {/* Context controls depending on state and user roles */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: '#1c1917', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                     <h4 style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Operations Actions Panel</h4>
-                    
-                    {selectedChallan.status === 'Draft' && (
-                      <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        {isDispatchUser && (
-                          <button 
-                            className="btn btn-primary" 
-                            style={{ flex: 1, minWidth: '150px' }}
-                            onClick={() => handleConfirmChallan(selectedChallan.id)}
-                          >
-                            <CheckCircle size={16} />
-                            <span>Confirm Stock Dispatch</span>
+
+                    {isConfirmingAction && (
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '1rem', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Confirm dispatch and deduct item stocks?</span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="button" className="btn btn-primary" onClick={() => executeConfirmChallan(selectedChallan.id)} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }} disabled={actionRunning}>
+                            {actionRunning ? 'Dispatching...' : 'Yes, Confirm'}
                           </button>
-                        )}
-                        {isBillingUser && (
-                          <button 
-                            className="btn btn-secondary" 
-                            style={{ flex: 1, minWidth: '120px' }}
-                            onClick={() => handleEditChallanClick(selectedChallan)}
-                          >
-                            <Edit3 size={16} style={{ display: 'inline', marginRight: '0.2rem' }} />
-                            <span>Change Draft Items</span>
+                          <button type="button" className="btn btn-secondary" onClick={() => setIsConfirmingAction(false)} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }} disabled={actionRunning}>
+                            Cancel
                           </button>
-                        )}
-                        {isBillingUser && (
-                          <button 
-                            className="btn btn-danger" 
-                            style={{ minWidth: '100px' }}
-                            onClick={() => handleCancelChallan(selectedChallan.id)}
-                          >
-                            <XCircle size={16} />
-                            <span>Cancel Challan</span>
-                          </button>
-                        )}
+                        </div>
                       </div>
                     )}
 
-                    {selectedChallan.status === 'Confirmed' && isBillingUser && (
-                      <div>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                          This sales challan was confirmed. If you cancel this confirmed challan, the inventory items will be restored to the warehouse.
-                        </p>
-                        <button 
-                          className="btn btn-danger" 
-                          style={{ width: '100%' }}
-                          onClick={() => handleCancelChallan(selectedChallan.id)}
-                        >
-                          <XCircle size={16} />
-                          <span>Void & Restore Inventory Stock</span>
-                        </button>
+                    {isCancellingAction && (
+                      <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: '1rem', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--danger)' }}>Void this challan and restore inventory stock?</span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button type="button" className="btn btn-danger" onClick={() => executeCancelChallan(selectedChallan.id)} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', border: 'none' }} disabled={actionRunning}>
+                            {actionRunning ? 'Voiding...' : 'Yes, Void'}
+                          </button>
+                          <button type="button" className="btn btn-secondary" onClick={() => setIsCancellingAction(false)} style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }} disabled={actionRunning}>
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     )}
 
-                    {selectedChallan.status === 'Cancelled' && (
-                      <p style={{ fontSize: '0.8rem', color: 'var(--danger)', fontStyle: 'italic', textAlign: 'center' }}>
-                        This Sales Challan has been cancelled/voided. No further actions can be performed on this transaction.
-                      </p>
+                    {!isConfirmingAction && !isCancellingAction && (
+                      <>
+                        {selectedChallan.status === 'Draft' && (
+                          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                            {isDispatchUser && (
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ flex: 1, minWidth: '150px' }}
+                                onClick={() => setIsConfirmingAction(true)}
+                              >
+                                <CheckCircle size={16} />
+                                <span>Confirm Stock Dispatch</span>
+                              </button>
+                            )}
+                            {isBillingUser && (
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ flex: 1, minWidth: '120px' }}
+                                onClick={() => handleEditChallanClick(selectedChallan)}
+                              >
+                                <Edit3 size={16} style={{ display: 'inline', marginRight: '0.2rem' }} />
+                                <span>Change Draft Items</span>
+                              </button>
+                            )}
+                            {isBillingUser && (
+                              <button 
+                                className="btn btn-danger" 
+                                style={{ minWidth: '100px' }}
+                                onClick={() => setIsCancellingAction(true)}
+                              >
+                                <XCircle size={16} />
+                                <span>Cancel Challan</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+
+                        {selectedChallan.status === 'Confirmed' && isBillingUser && (
+                          <div>
+                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                              This sales challan was confirmed. If you cancel this confirmed challan, the inventory items will be restored to the warehouse.
+                            </p>
+                            <button 
+                              className="btn btn-danger" 
+                              style={{ width: '100%' }}
+                              onClick={() => setIsCancellingAction(true)}
+                            >
+                              <XCircle size={16} />
+                              <span>Void & Restore Inventory Stock</span>
+                            </button>
+                          </div>
+                        )}
+
+                        {selectedChallan.status === 'Cancelled' && (
+                          <p style={{ fontSize: '0.85rem', color: 'var(--danger)', fontStyle: 'italic', textAlign: 'center', margin: 0 }}>
+                            This Sales Challan has been cancelled/voided. No further actions can be performed on this transaction.
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
