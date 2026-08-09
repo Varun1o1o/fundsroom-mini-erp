@@ -168,12 +168,14 @@ export default function Inventory() {
     if (!prodForm.productName.trim()) errors.productName = 'Name is required';
     if (!prodForm.sku.trim() || prodForm.sku.length < 3) errors.sku = 'SKU code is required (min 3 characters)';
     if (!prodForm.category.trim()) errors.category = 'Category label is required';
-    if (!prodForm.unitPrice || Number(prodForm.unitPrice) <= 0) errors.unitPrice = 'Must be greater than 0';
-    if (prodForm.currentStock === '' || Number(prodForm.currentStock) < 0) {
-      errors.currentStock = 'Starting inventory must be non-negative';
+    if (!prodForm.unitPrice || isNaN(Number(prodForm.unitPrice)) || Number(prodForm.unitPrice) <= 0) {
+      errors.unitPrice = 'Must be a positive number';
     }
-    if (prodForm.minimumStockAlertQuantity === '' || Number(prodForm.minimumStockAlertQuantity) < 0) {
-      errors.minimumStockAlertQuantity = 'Trigger alert value is required';
+    if (prodForm.currentStock === '' || isNaN(Number(prodForm.currentStock)) || Number(prodForm.currentStock) < 0 || !Number.isInteger(Number(prodForm.currentStock))) {
+      errors.currentStock = 'Starting inventory must be a whole non-negative number';
+    }
+    if (prodForm.minimumStockAlertQuantity === '' || isNaN(Number(prodForm.minimumStockAlertQuantity)) || Number(prodForm.minimumStockAlertQuantity) < 0 || !Number.isInteger(Number(prodForm.minimumStockAlertQuantity))) {
+      errors.minimumStockAlertQuantity = 'Trigger alert must be a whole non-negative number';
     }
     if (!prodForm.warehouseLocation.trim()) errors.warehouseLocation = 'Warehouse shelf marker is required';
 
@@ -535,6 +537,7 @@ export default function Inventory() {
                   <label>Quantity to Change*</label>
                   <input
                     type="number"
+                    step="any"
                     className="form-control"
                     placeholder="Enter whole number"
                     min={1}
@@ -726,7 +729,7 @@ export default function Inventory() {
                     <label>MRP / Unit Price (INR)*</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step="any"
                       className="form-control"
                       placeholder="Pricing value"
                       value={prodForm.unitPrice}
@@ -751,6 +754,7 @@ export default function Inventory() {
                     <label>Starting Inventory*</label>
                     <input
                       type="number"
+                      step="any"
                       className="form-control"
                       placeholder="Available count"
                       value={prodForm.currentStock}
@@ -763,6 +767,7 @@ export default function Inventory() {
                     <label>Reorder Alert Threshold*</label>
                     <input
                       type="number"
+                      step="any"
                       className="form-control"
                       placeholder="Alert when stock <= variable"
                       value={prodForm.minimumStockAlertQuantity}

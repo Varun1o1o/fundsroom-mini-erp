@@ -234,9 +234,9 @@ export default function Challans() {
     challanForm.items.forEach((item, idx) => {
       if (!item.productId) {
         itemsErrors[idx] = 'Select product';
-      }
-      // Check stock if they try to save as Confirmed directly
-      if (challanForm.status === 'Confirmed' && item.productId) {
+      } else if (!item.quantity || isNaN(Number(item.quantity)) || Number(item.quantity) <= 0 || !Number.isInteger(Number(item.quantity))) {
+        itemsErrors[idx] = 'Must be a positive whole integer';
+      } else if (challanForm.status === 'Confirmed') {
         const prod = productsList.find(p => p.id === item.productId);
         if (prod && prod.currentStock < item.quantity) {
           itemsErrors[idx] = `Low Stock. Available: ${prod.currentStock}`;
@@ -649,6 +649,7 @@ export default function Challans() {
                         <div style={{ width: '80px' }}>
                           <input
                             type="number"
+                            step="any"
                             min={1}
                             placeholder="Qty"
                             className="form-control"
